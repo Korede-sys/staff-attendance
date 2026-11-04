@@ -17,11 +17,39 @@ app.use(cors());
 app.use(express.json());
 
 // ---------- helpers ----------
+// Vercel Functions always run with the server clock in UTC, and Vercel
+// reserves the TZ environment variable so it can't be overridden from the
+// dashboard. Rather than depend on the server's local timezone at all, we
+// compute "today" and "now" directly in the organization's configured IANA
+// timezone using Intl, which works the same whether this runs on Vercel,
+// locally, or anywhere else.
+function getTimeZone() {
+  return process.env.APP_TIMEZONE || 'Africa/Lagos';
+}
+function zonedParts(d = new Date(), timeZone = getTimeZone()) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(d).reduce((acc, p) => {
+    acc[p.type] = p.value;
+    return acc;
+  }, {});
+  return {
+    dateStr: `${parts.year}-${parts.month}-${parts.day}`,
+    timeStr: `${parts.hour}:${parts.minute}`,
+  };
+}
 function todayStr(d = new Date()) {
-  return d.toISOString().slice(0, 10);
+  return zonedParts(d).dateStr;
 }
 function timeStr(d = new Date()) {
-  return d.toTimeString().slice(0, 5); // HH:MM
+  return zonedParts(d).timeStr;
 }
 function minutesSinceMidnight(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
