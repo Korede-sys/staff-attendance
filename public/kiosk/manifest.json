@@ -1,0 +1,10 @@
+{
+  "name": "Staff Check-In",
+  "short_name": "Check-In",
+  "start_url": "/kiosk",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": []
+}

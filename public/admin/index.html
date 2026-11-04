@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Attendance Admin</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="login-screen" class="screen">
+  <div class="login-card">
+    <h1>Admin Sign In</h1>
+    <p class="muted">Enter the admin PIN to manage staff and view attendance.</p>
+    <div class="field">
+      <label>Admin PIN</label>
+      <input id="login-pin" type="password" inputmode="numeric" autocomplete="off" />
+    </div>
+    <button id="login-btn" class="btn primary">Sign In</button>
+    <button id="biometric-login-btn" class="btn ghost" style="display:none;">Unlock with Face ID / Fingerprint</button>
+    <div id="login-error" class="error-text"></div>
+  </div>
+</div>
+
+<div id="app-screen" class="screen" style="display:none;">
+  <nav class="topbar">
+    <div class="brand" id="brand-name">Attendance Admin</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-view="today">Today</button>
+      <button class="nav-tab" data-view="staff">Staff</button>
+      <button class="nav-tab" data-view="reports">Reports</button>
+      <button class="nav-tab" data-view="settings">Settings</button>
+    </div>
+    <button id="logout-btn" class="btn ghost small">Log out</button>
+  </nav>
+
+  <main class="content">
+
+    <section id="view-today" class="view active">
+      <div class="view-header">
+        <h2>Today's Attendance</h2>
+        <input type="date" id="attendance-date" />
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Checked in <span id="checked-in-count" class="pill"></span></h3>
+          <table class="table" id="checked-in-table">
+            <thead><tr><th>Name</th><th>ID</th><th>Time</th><th>Method</th><th>Status</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Not yet checked in <span id="absent-count" class="pill warn"></span></h3>
+          <table class="table" id="absent-table">
+            <thead><tr><th>Name</th><th>ID</th><th>Shift start</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-staff" class="view">
+      <div class="view-header">
+        <h2>Staff</h2>
+        <button class="btn primary" id="add-staff-btn">+ Add Staff</button>
+      </div>
+      <div class="card">
+        <table class="table" id="staff-table">
+          <thead><tr><th>Name</th><th>Staff ID</th><th>Shift start</th><th>Active</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-reports" class="view">
+      <div class="view-header">
+        <h2>Lateness Report</h2>
+        <div class="row-inline">
+          <input type="date" id="report-from" />
+          <span>to</span>
+          <input type="date" id="report-to" />
+          <button class="btn primary small" id="run-report-btn">Run</button>
+        </div>
+      </div>
+      <div class="card">
+        <table class="table" id="report-table">
+          <thead><tr><th>Name</th><th>Staff ID</th><th>Days checked in</th><th>Days late</th><th>Avg minutes late</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-settings" class="view">
+      <h2>Settings</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Organization</h3>
+          <div class="field">
+            <label>Organization name</label>
+            <input id="org-name-input" type="text" />
+          </div>
+          <div class="field">
+            <label>Grace period (minutes before counted late)</label>
+            <input id="grace-input" type="number" min="0" max="120" />
+          </div>
+          <button class="btn primary" id="save-settings-btn">Save</button>
+          <div id="settings-saved" class="success-text"></div>
+        </div>
+
+        <div class="card">
+          <h3>Admin PIN</h3>
+          <div class="field">
+            <label>New admin PIN</label>
+            <input id="new-pin-input" type="password" inputmode="numeric" />
+          </div>
+          <button class="btn primary" id="change-pin-btn">Update PIN</button>
+          <div id="pin-changed" class="success-text"></div>
+        </div>
+
+        <div class="card">
+          <h3>Biometric unlock (Face ID / Fingerprint)</h3>
+          <p class="muted">Lets you unlock this admin dashboard on this phone using its own Face ID or fingerprint, instead of typing the PIN. Still requires the PIN as a fallback.</p>
+          <ul id="biometric-list" class="simple-list"></ul>
+          <button class="btn primary" id="register-biometric-btn">Set up on this device</button>
+          <div id="biometric-msg" class="success-text"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="modal-backdrop" class="modal-backdrop" style="display:none;">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

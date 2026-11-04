@@ -1,0 +1,145 @@
+:root {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --accent-dark: #1d4ed8;
+  --good: #16a34a;
+  --bad: #dc2626;
+  --warn-bg: #fff7ed;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+.screen { min-height: 100vh; }
+
+/* Login */
+#login-screen { display: flex; align-items: center; justify-content: center; padding: 20px; }
+.login-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+  width: 100%;
+  max-width: 380px;
+}
+.login-card h1 { margin: 0 0 6px; font-size: 1.4rem; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+
+/* Fields & buttons */
+.field { margin: 14px 0; }
+.field label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+.field input, .field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+}
+.btn {
+  display: inline-block;
+  padding: 11px 18px;
+  border-radius: 9px;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 8px;
+}
+.btn.primary { background: var(--accent); color: white; }
+.btn.primary:hover { background: var(--accent-dark); }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+.btn.danger { background: #fee2e2; color: var(--bad); }
+.btn.small { width: auto; padding: 7px 12px; font-size: 0.85rem; margin: 0; }
+.error-text { color: var(--bad); font-size: 0.88rem; margin-top: 10px; min-height: 1.2em; }
+.success-text { color: var(--good); font-size: 0.88rem; margin-top: 10px; min-height: 1.2em; }
+
+/* App shell */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.brand { font-weight: 700; font-size: 1.05rem; }
+.nav-tabs { display: flex; gap: 6px; flex: 1; }
+.nav-tab {
+  background: transparent;
+  border: none;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+.nav-tab.active { background: #eff6ff; color: var(--accent); }
+.content { padding: 24px; max-width: 1100px; margin: 0 auto; }
+.view { display: none; }
+.view.active { display: block; }
+
+.view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.row-inline { display: flex; align-items: center; gap: 8px; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+}
+.card h3 { margin-top: 0; display: flex; align-items: center; gap: 8px; }
+
+.pill {
+  font-size: 0.75rem;
+  background: #ecfdf5;
+  color: var(--good);
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-weight: 700;
+}
+.pill.warn { background: var(--warn-bg); color: #ea580c; }
+
+.table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.table th, .table td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); }
+.table th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+.status-late { color: var(--bad); font-weight: 700; }
+.status-on_time { color: var(--good); font-weight: 700; }
+
+.simple-list { list-style: none; padding: 0; margin: 10px 0; }
+.simple-list li {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem;
+}
+
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(15,23,42,0.5);
+  display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100;
+}
+.modal {
+  background: var(--panel); border-radius: 14px; padding: 24px;
+  width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+}
+.modal h3 { margin-top: 0; }
+.modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+.modal-actions .btn { margin-top: 0; }
+.qr-preview { text-align: center; margin: 14px 0; }
+.qr-preview img { width: 220px; height: 220px; }
