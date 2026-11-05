@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
+const multer = require('multer');
+const XLSX = require('xlsx');
 const {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -15,6 +17,11 @@ const { createSession, requireAdmin } = require('./auth');
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024 }, // 4MB — well under Vercel's function body limit
+});
 
 // ---------- helpers ----------
 // Vercel Functions always run with the server clock in UTC, and Vercel
@@ -67,11 +74,23 @@ function rpIDFromReq(req) {
   return req.hostname;
 }
 
+// Returns the shift start time that actually applies to this staff member
+// on this date: a per-date override from an imported shift schedule if one
+// exists, otherwise their normal fixed shift_start.
+async function effectiveShiftStart(staffId, date, fallback) {
+  const { rows } = await db.query(
+    'SELECT shift_start FROM staff_shifts WHERE staff_id = $1 AND shift_date = $2',
+    [staffId, date]
+  );
+  return rows.length ? rows[0].shift_start : fallback;
+}
+
 async function recordCheckIn(staff, method) {
   const now = new Date();
   const date = todayStr(now);
   const nowTime = timeStr(now);
-  const shiftMinutes = minutesSinceMidnight(staff.shift_start);
+  const shiftStart = await effectiveShiftStart(staff.id, date, staff.shift_start);
+  const shiftMinutes = minutesSinceMidnight(shiftStart);
   const nowMinutes = minutesSinceMidnight(nowTime);
   const grace = Number(await db.getSetting('grace_period_minutes', 5));
   const lateBy = nowMinutes - shiftMinutes - grace;
@@ -416,6 +435,160 @@ app.get('/api/admin/staff/:id/qr', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ---------- admin: shift schedule (imported from Excel) ----------
+// Lets departments with rotating shifts (e.g. Customer Service, Risk) upload
+// their existing roster spreadsheet directly, instead of an admin re-typing
+// it. Expected columns (header names are matched loosely, case-insensitive):
+//   Staff ID | Date | Shift Start
+// A date cell can be a real Excel date or a "YYYY-MM-DD" string. A shift
+// start cell can be a real Excel time, a fraction-of-a-day number, or a
+// "HH:MM" / "H:MM AM/PM" string.
+
+function parseDateCell(value) {
+  if (value instanceof Date) {
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(value.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof value === 'number') {
+    const ms = Math.round((value - 25569) * 86400 * 1000); // Excel serial -> epoch ms
+    const dt = new Date(ms);
+    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+  }
+  if (typeof value === 'string') {
+    const s = value.trim();
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+    const parsed = new Date(s);
+    if (!isNaN(parsed.getTime())) {
+      return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, '0')}-${String(parsed.getUTCDate()).padStart(2, '0')}`;
+    }
+  }
+  return null;
+}
+
+function parseTimeCell(value) {
+  if (value instanceof Date) {
+    const hh = String(value.getUTCHours()).padStart(2, '0');
+    const mm = String(value.getUTCMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+  if (typeof value === 'number') {
+    const totalMinutes = Math.round(value * 24 * 60);
+    const hh = String(Math.floor(totalMinutes / 60) % 24).padStart(2, '0');
+    const mm = String(totalMinutes % 60).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+  if (typeof value === 'string') {
+    const s = value.trim();
+    const m = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?$/);
+    if (m) {
+      let hh = parseInt(m[1], 10);
+      const mm = m[2];
+      if (m[3]) {
+        const ap = m[3].toUpperCase();
+        if (ap === 'PM' && hh !== 12) hh += 12;
+        if (ap === 'AM' && hh === 12) hh = 0;
+      }
+      return `${String(hh).padStart(2, '0')}:${mm}`;
+    }
+  }
+  return null;
+}
+
+function findColumn(headers, candidates) {
+  return headers.find((h) => {
+    const norm = h.toLowerCase().replace(/[^a-z]/g, '');
+    return candidates.some((c) => norm.includes(c));
+  });
+}
+
+app.post('/api/admin/shifts/import', requireAdmin, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    let workbook;
+    try {
+      workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    } catch (err) {
+      return res.status(400).json({ error: 'Could not read that file — is it a valid .xlsx, .xls, or .csv?' });
+    }
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+    if (!rows.length) return res.status(400).json({ error: 'That sheet looks empty' });
+
+    const headers = Object.keys(rows[0]);
+    const staffCol = findColumn(headers, ['staffid', 'staffcode', 'employeeid', 'empid', 'id']);
+    const dateCol = findColumn(headers, ['date']);
+    const startCol = findColumn(headers, ['shiftstart', 'starttime', 'start']);
+
+    if (!staffCol || !dateCol || !startCol) {
+      return res.status(400).json({
+        error: `Could not find the expected columns. Found: ${headers.join(', ')}. ` +
+          `Expected columns like "Staff ID", "Date", and "Shift Start".`,
+      });
+    }
+
+    const { rows: staffRows } = await db.query('SELECT id, staff_code FROM staff');
+    const staffByCode = new Map(staffRows.map((s) => [String(s.staff_code).trim().toLowerCase(), s.id]));
+
+    const errors = [];
+    const validEntries = [];
+    rows.forEach((row, i) => {
+      const rowNum = i + 2; // +1 for header row, +1 for 1-indexing
+      const staffCode = row[staffCol] == null ? '' : String(row[staffCol]).trim();
+      const staffId = staffByCode.get(staffCode.toLowerCase());
+      const dateStr = parseDateCell(row[dateCol]);
+      const timeStr_ = parseTimeCell(row[startCol]);
+
+      if (!staffCode) { errors.push(`Row ${rowNum}: missing Staff ID`); return; }
+      if (!staffId) { errors.push(`Row ${rowNum}: no staff found with ID "${staffCode}"`); return; }
+      if (!dateStr) { errors.push(`Row ${rowNum}: could not read the date`); return; }
+      if (!timeStr_) { errors.push(`Row ${rowNum}: could not read the shift start time`); return; }
+
+      validEntries.push({ staffId, dateStr, timeStr_ });
+    });
+
+    for (const e of validEntries) {
+      await db.query(
+        `INSERT INTO staff_shifts (staff_id, shift_date, shift_start) VALUES ($1, $2, $3)
+         ON CONFLICT (staff_id, shift_date) DO UPDATE SET shift_start = excluded.shift_start`,
+        [e.staffId, e.dateStr, e.timeStr_]
+      );
+    }
+
+    res.json({
+      imported: validEntries.length,
+      staffCount: new Set(validEntries.map((e) => e.staffId)).size,
+      errorCount: errors.length,
+      errors: errors.slice(0, 30),
+    });
+  } catch (err) { next(err); }
+});
+
+app.get('/api/admin/shifts', requireAdmin, async (req, res, next) => {
+  try {
+    const from = req.query.from || todayStr();
+    const to = req.query.to || todayStr(new Date(Date.now() + 13 * 86400000));
+    const { rows } = await db.query(
+      `SELECT ss.id, ss.shift_date, ss.shift_start, s.id as staff_id, s.name, s.staff_code
+       FROM staff_shifts ss JOIN staff s ON s.id = ss.staff_id
+       WHERE ss.shift_date BETWEEN $1 AND $2
+       ORDER BY ss.shift_date, s.name`,
+      [from, to]
+    );
+    res.json({ from, to, rows });
+  } catch (err) { next(err); }
+});
+
+app.delete('/api/admin/shifts/:id', requireAdmin, async (req, res, next) => {
+  try {
+    await db.query('DELETE FROM staff_shifts WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 // ---------- admin: attendance ----------
 
 app.get('/api/admin/attendance', requireAdmin, async (req, res, next) => {
@@ -433,8 +606,16 @@ app.get('/api/admin/attendance', requireAdmin, async (req, res, next) => {
     const { rows: allStaff } = await db.query(
       'SELECT id, name, staff_code, shift_start FROM staff WHERE active = 1'
     );
+    const { rows: overridesForDate } = await db.query(
+      'SELECT staff_id, shift_start FROM staff_shifts WHERE shift_date = $1',
+      [date]
+    );
+    const overrideMap = new Map(overridesForDate.map((o) => [o.staff_id, o.shift_start]));
+
     const checkedInIds = new Set(rows.map((r) => r.staff_id));
-    const absent = allStaff.filter((s) => !checkedInIds.has(s.id));
+    const absent = allStaff
+      .filter((s) => !checkedInIds.has(s.id))
+      .map((s) => ({ ...s, shift_start: overrideMap.get(s.id) || s.shift_start }));
 
     res.json({ date, checkedIn: rows, absent });
   } catch (err) { next(err); }
