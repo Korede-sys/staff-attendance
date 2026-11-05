@@ -63,6 +63,18 @@ CREATE TABLE IF NOT EXISTS webauthn_challenges (
   purpose TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Per-date shift overrides, for staff whose shift time changes day to day
+-- (e.g. rotating Customer Service / Risk shifts imported from a
+-- spreadsheet). A staff member with no row here for a given date just uses
+-- their fixed staff.shift_start (the normal case for permanent 9-5 roles).
+CREATE TABLE IF NOT EXISTS staff_shifts (
+  id SERIAL PRIMARY KEY,
+  staff_id INTEGER NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  shift_date TEXT NOT NULL,
+  shift_start TEXT NOT NULL,
+  UNIQUE(staff_id, shift_date)
+);
 `;
 
 // Serverless platforms spin up a fresh function instance per cold start, so
