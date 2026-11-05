@@ -161,6 +161,7 @@ function switchView(view) {
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + view));
   if (view === 'today') loadToday();
   if (view === 'staff') loadStaff();
+  if (view === 'shifts') loadShiftsDefaults();
   if (view === 'reports') loadReportDefaults();
   if (view === 'settings') loadSettings();
 }
@@ -291,6 +292,89 @@ window.printQr = (dataUrl, name) => {
   w.document.close();
   w.print();
 };
+
+// ---------- shifts view (rotating schedules imported from Excel) ----------
+function loadShiftsDefaults() {
+  const from = document.getElementById('shifts-from');
+  const to = document.getElementById('shifts-to');
+  if (!from.value) from.value = new Date().toISOString().slice(0, 10);
+  if (!to.value) to.value = new Date(Date.now() + 13 * 86400000).toISOString().slice(0, 10);
+  loadShifts();
+}
+
+document.getElementById('load-shifts-btn').addEventListener('click', loadShifts);
+
+async function loadShifts() {
+  const from = document.getElementById('shifts-from').value;
+  const to = document.getElementById('shifts-to').value;
+  const data = await apiFetch(`/api/admin/shifts?from=${from}&to=${to}`);
+  const body = document.querySelector('#shifts-table tbody');
+  body.innerHTML = data.rows.map((r) => `
+    <tr>
+      <td>${r.shift_date}</td>
+      <td>${escapeHtml(r.name)}</td>
+      <td>${escapeHtml(r.staff_code)}</td>
+      <td>${r.shift_start}</td>
+      <td><button class="btn danger small" onclick="deleteShiftRow(${r.id})">🗑️</button></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted">No imported shifts in this range</td></tr>';
+}
+
+window.deleteShiftRow = async (id) => {
+  await apiFetch('/api/admin/shifts/' + id, { method: 'DELETE' });
+  loadShifts();
+};
+
+document.getElementById('import-shifts-btn').addEventListener('click', async () => {
+  const fileInput = document.getElementById('shift-file-input');
+  const resultEl = document.getElementById('import-result');
+  const errorsEl = document.getElementById('import-errors');
+  resultEl.style.color = '';
+  resultEl.textContent = '';
+  errorsEl.innerHTML = '';
+
+  const file = fileInput.files[0];
+  if (!file) {
+    resultEl.style.color = '#dc2626';
+    resultEl.textContent = 'Choose a file first';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/api/admin/shifts/import', {
+      method: 'POST',
+      headers: token ? { Authorization: 'Bearer ' + token } : {},
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Import failed');
+
+    resultEl.style.color = '';
+    resultEl.textContent = `✅ Imported ${data.imported} shift entries for ${data.staffCount} staff member(s).` +
+      (data.errorCount ? ` ${data.errorCount} row(s) had problems.` : '');
+    errorsEl.innerHTML = (data.errors || []).map((e) => `<li>${escapeHtml(e)}</li>`).join('');
+    fileInput.value = '';
+    loadShifts();
+  } catch (err) {
+    resultEl.style.color = '#dc2626';
+    resultEl.textContent = err.message;
+  }
+});
+
+document.getElementById('download-template-btn').addEventListener('click', () => {
+  const csv = 'Staff ID,Date,Shift Start\r\nEMP001,2026-11-10,14:00\r\nEMP002,2026-11-10,07:00\r\n';
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'shift-schedule-template.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
 
 // ---------- reports view ----------
 function loadReportDefaults() {
