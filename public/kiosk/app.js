@@ -1,4 +1,4 @@
-QrScanner.WORKER_PATH = 'qr-scanner-worker.min.js';
+QrScanner.WORKER_PATH = '/kiosk/qr-scanner-worker.min.js';
 
 const clockEl = document.getElementById('clock');
 function tickClock() {
