@@ -4,6 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Attendance Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/admin/style.css" />
 </head>
 <body>
@@ -28,6 +31,7 @@
     <div class="nav-tabs">
       <button class="nav-tab active" data-view="today">🕒 Today</button>
       <button class="nav-tab" data-view="staff">👥 Staff</button>
+      <button class="nav-tab" data-view="shifts">📅 Shifts</button>
       <button class="nav-tab" data-view="reports">📊 Reports</button>
       <button class="nav-tab" data-view="settings">⚙️ Settings</button>
     </div>
@@ -70,6 +74,38 @@
           <thead><tr><th>Name</th><th>Staff ID</th><th>Shift start</th><th>Active</th><th>Actions</th></tr></thead>
           <tbody></tbody>
         </table>
+      </div>
+    </section>
+
+    <section id="view-shifts" class="view">
+      <h2>📅 Shift Schedule</h2>
+      <p class="muted">For staff whose shift time changes day to day (e.g. Customer Service, Risk). Upload the department's roster spreadsheet below — staff not listed in it keep their normal fixed shift time.</p>
+      <div class="grid-2">
+        <div class="card">
+          <h3>📤 Import from Excel</h3>
+          <p class="muted">Needs three columns, in any order, with these (or similar) headers: <strong>Staff ID</strong>, <strong>Date</strong>, <strong>Shift Start</strong>. Accepts .xlsx, .xls, or .csv.</p>
+          <div class="field">
+            <input type="file" id="shift-file-input" accept=".xlsx,.xls,.csv" />
+          </div>
+          <button class="btn primary" id="import-shifts-btn">📤 Import Shifts</button>
+          <button class="btn ghost" id="download-template-btn">⬇️ Download template</button>
+          <div id="import-result" class="success-text"></div>
+          <ul id="import-errors" class="simple-list"></ul>
+        </div>
+
+        <div class="card">
+          <h3>🔍 Upcoming schedule</h3>
+          <div class="row-inline" style="margin-bottom:12px;">
+            <input type="date" id="shifts-from" />
+            <span>to</span>
+            <input type="date" id="shifts-to" />
+            <button class="btn primary small" id="load-shifts-btn">▶️ Load</button>
+          </div>
+          <table class="table" id="shifts-table">
+            <thead><tr><th>Date</th><th>Name</th><th>Staff ID</th><th>Shift start</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
